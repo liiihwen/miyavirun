@@ -396,20 +396,15 @@ function resizeCanvas() {
 
     const monitor = document.querySelector('.retro-monitor');
     if (monitor) {
-        const margin = 16;
-        const availW = window.innerWidth - margin * 2;
-        const availH = window.innerHeight - margin * 2;
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const isSmall = vh <= 500 || vw <= 600;
+        const maxWidthRatio  = isSmall ? 0.80 : 0.95;
+        const maxHeightRatio = isSmall ? 0.80 : 0.75;
 
-        let w = availW;
-        let h = w / 2;    
-
-        if (h > availH) {    
-            h = availH;
-            w = h * 2;
-        }
-
+        const w = Math.min(vw * maxWidthRatio, vh * maxHeightRatio * 2);
         monitor.style.width = w + 'px';
-        monitor.style.height = h + 'px';
+        monitor.style.height = (w / 2) + 'px';
     }
 }
 
@@ -423,9 +418,9 @@ function updateRotateNotice() {
 }
 window.addEventListener('resize', updateRotateNotice);
 window.addEventListener('orientationchange', () => {
-    updateRotateNotice();
-    setTimeout(updateRotateNotice, 150);
-    setTimeout(updateRotateNotice, 400);
+    updateRotateNotice(); resizeCanvas();
+    setTimeout(() => { updateRotateNotice(); resizeCanvas(); }, 150);
+    setTimeout(() => { updateRotateNotice(); resizeCanvas(); }, 400);
 });
 if (window.matchMedia) {
     const orientationQuery = window.matchMedia('(orientation: portrait)');
