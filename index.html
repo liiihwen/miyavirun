@@ -1445,7 +1445,7 @@ function triggerSpecialEvent() {
         const elapsed = (Date.now() - startTime) / 1000;
         const remaining = Math.max(0, 5 - elapsed);
 
-        renderSpecialPage(elapsed);
+        renderSpecialPage(elapsed, remaining);
 
         if (remaining <= 0) {
             clearInterval(specialInterval);
@@ -1468,8 +1468,12 @@ specialImages['char3'].src = 'images/char3_run.png';
 specialImages['char4'].src = 'images/char4_run.png';
 specialImages['bg'].src = 'images/special_bg.gif';
 
-function renderSpecialPage(time) {
+function renderSpecialPage(time, remaining) {
     specialCtx.clearRect(0, 0, specialCanvas.width, specialCanvas.height);
+
+    specialCtx.fillStyle = '#000';
+    specialCtx.font = 'bold 28px "Courier New"';
+    specialCtx.fillText(Math.ceil(remaining), 20, 40);
 }
 
 function drawTriangle(x, y, direction, color, size = 15) {
