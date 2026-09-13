@@ -217,34 +217,18 @@
 <script>
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-ctx.imageSmoothingEnabled = false; // 关闭画布的平滑/双线性插值，避免精灵图裁切时“借用”相邻帧像素造成的重影
+ctx.imageSmoothingEnabled = false; 
 
 const INITIAL_SPEED = 5; 
 const MAX_SPEED = 12;
 let currentSpeed = INITIAL_SPEED;
 
-// ===== 帧率锁定 =====
-// 之前逻辑直接挂在 requestAnimationFrame 上，rAF 的触发频率等于屏幕刷新率，
-// 所以 120/144Hz 高刷屏上，所有和"每帧执行一次"挂钩的东西（加速度、动画、位移、计分…）
-// 都会等比变快。这里把真正的游戏逻辑限制成固定 60 次/秒执行，
-// 不管屏幕刷新率是 60/120/144，游戏速度和动画表现都保持一致。
 const TARGET_FPS = 60;
-const FRAME_DURATION = 1000 / TARGET_FPS; // 一帧应占用的时间（约16.67ms）
+const FRAME_DURATION = 1000 / TARGET_FPS; 
 let lastFrameTime = 0;
 
-// ===== 动画帧率上限 =====
-// gameSpeed 会随游戏进程从 INITIAL_SPEED 一直涨到 MAX_SPEED，吃到boost还会再乘1.2。
-// 之前角色跑动动画的播放速度直接和 gameSpeed 挂钩，导致游戏后期/boost时动画肉眼可见地越播越快。
-// 现在动画播放速度只跟"min(gameSpeed, ANIM_SPEED_CAP)"挂钩：
-// 达到这个速度阈值后动画帧率就封顶不再变化，但 gameSpeed 本身（也就是移动速度/难度）依然正常一路涨到 MAX_SPEED。
-// 可以按手感调整这个数值，越小动画封顶越早。
 const ANIM_SPEED_CAP = 8;
 
-// ===== 跳跃视觉放大 =====
-// 之前只是把jump贴图裁掉透明留白后铺满和run一样大的框，理论上能让每帧看起来一样大，
-// 但实际视觉上跳跃姿势本身（人抬手、蜷腿等）看着还是比走路"单薄"一点，肉眼还是觉得偏小。
-// 这里直接加一个独立的放大倍数，只影响跳跃时的显示大小，不影响碰撞体积（手感不变）。
-// 想再大/再小，直接调这个数字就行，1.0 = 跟原来一样大。
 const JUMP_VISUAL_SCALE = 1.15;
 
 const skinToSceneMap = {
@@ -254,7 +238,6 @@ const skinToSceneMap = {
     'char4': { scene: '4', ext: 'png' }
 };
 const characters = ['char1', 'char2', 'char3', 'char4'];
-// 角色内部标识（对应素材文件名前缀）保持不变，仅用于选角页面展示的名称做映射
 const characterDisplayNames = {
     'char1': 'Oresama',
     'char2': 'Kabuki Boiz',
@@ -316,7 +299,7 @@ let score = 0;
 let distance = 0;
 let gameSpeed = INITIAL_SPEED;
 let boostTimer = 0;
-let speedAccel = 0.0008; // currentSpeed 每帧的爬升速率，会在里程碑达成时被调快
+let speedAccel = 0.0008;
 let menuIndex = 0;
 let selectAnimFrame = 0;
 
@@ -335,7 +318,6 @@ canvas.addEventListener('mouseleave', clearHoverState);
 let cachedSrcW = 32;
 let cachedSrcH = 40;
 let groundY = 340;
-// 之前去掉了地面上的那条白线，人物/障碍物的落地位置会因此悬空 1px（原来白线所在的那一行），这里补回来
 const GROUND_VISUAL_OFFSET = 2;
 
 const itemSfx = document.getElementById('sfx-item');
@@ -359,7 +341,7 @@ const specialCtx = specialCanvas.getContext('2d');
 function resizeCanvas() {
     canvas.width = 800;
     canvas.height = 400;
-    ctx.imageSmoothingEnabled = false; // 设置 canvas.width/height 会重置上下文状态，需要重新关闭平滑
+    ctx.imageSmoothingEnabled = false;
     groundY = 340; 
     if (typeof player !== 'undefined' && player) {
         const dims = player.getFrameDimensions();
@@ -437,8 +419,6 @@ function changeCharacter(dir = 1) {
     switchBGM(currentSkin);
 }
 
-// 每局开始/重开时调用：把角色贴图/BGM 强制还原成玩家在选角页面选中的角色，
-// 避免上一局吃 item2 变身后（currentSkin 被改成 char4）留到下一局，导致"选不了char3"的问题
 function applySelectedSkin() {
     currentSkin = characters[characterIndex];
     characterImages.idle.src = `images/${currentSkin}_idle.png`;
@@ -447,14 +427,6 @@ function applySelectedSkin() {
     switchBGM(currentSkin);
 }
 
-// ===== 跳跃贴图裁切 =====
-// jump 贴图每一帧的画布宽度是统一的（方便按固定宽度切帧），但有的姿势（比如收腿）
-// 人物本体本身比画布窄/矮很多，两侧/上下会被透明像素填满凑够宽度。
-// 之前的做法是把"整帧画布（含透明留白）"整体压缩贴进和 run 一样大的框里，
-// 相当于连留白也被一起压缩，本体越窄的帧压完之后就显得比走路时明显小一圈。
-// 这里改成：先自动算出每一帧里人物本体的真实像素范围（去掉透明留白，换别的角色
-// 贴图也能自动适配，不用手动量尺寸），再把裁出来的本体铺满原来那个和 run 一样大的
-// 目标框，这样不管哪一帧，人物在画面上显示的大小都和走路时一致。
 const frameTrimCache = new WeakMap();
 
 function getFrameTrims(img, frameCount) {
@@ -492,8 +464,6 @@ function getFrameTrims(img, frameCount) {
                 : { x: 0, y: 0, w: frameW, h: frameH });
         }
     } catch (err) {
-        // 本地用 file:// 直接打开、或图片跨域时，getImageData 可能被浏览器拦截（画布被"污染"）。
-        // 这种情况下退化成不裁切（跟旧逻辑一样），保证游戏不会直接报错崩掉。
         for (let i = 0; i < frameCount; i++) {
             trims.push({ x: 0, y: 0, w: frameW, h: frameH });
         }
@@ -653,10 +623,6 @@ class Player {
         ctx.restore();
     }
 
-    // 跳跃动画单独走这条路径：裁掉每一帧贴图里的透明留白（本体比较窄的姿势不再连着
-    // 两边空白一起被压缩），再把裁出来的本体按 JUMP_VISUAL_SCALE 放大后画出来，
-    // 底部（脚）对齐、水平居中贴进跟 run 一样大的碰撞框——碰撞体积本身不受影响，
-    // 只是视觉上跳跃时的人物会比原来大一圈，跟走路时看起来更一致。
     drawJumpFrame(img, frameIndex, dims) {
         const frameW = dims.srcW;
         const trims = getFrameTrims(img, 8);
@@ -664,8 +630,8 @@ class Player {
 
         const drawW = dims.drawW * JUMP_VISUAL_SCALE;
         const drawH = dims.drawH * JUMP_VISUAL_SCALE;
-        const drawX = (dims.drawW - drawW) / 2; // 以碰撞框中心为基准水平居中
-        const drawY = dims.drawH - drawH;       // 底部（脚）对齐碰撞框底部
+        const drawX = (dims.drawW - drawW) / 2; 
+        const drawY = dims.drawH - drawH;  
 
         ctx.drawImage(
             img,
@@ -711,10 +677,6 @@ class Item {
     }
 
     update() {
-        // 之前这里用的是 currentSpeed，但障碍物(Obstacle)用的是 gameSpeed；
-        // 吃到加速道具触发 boostTimer 期间 gameSpeed = currentSpeed*1.2，两者不再相等，
-        // 会导致道具和障碍物的滚动速度不一致，铺好的道具路径越跑越偏。
-        // 统一成 gameSpeed，保证道具、障碍物、地面永远同步滚动。
         this.x -= gameSpeed;
     }
 
@@ -743,25 +705,12 @@ class Item {
 const player = new Player();
 let obstacles = [];
 let items = [];
-// spawnCooldown：距离下一次生成还剩多少帧。每次生成一个"图案"(pattern)后，
-// 会按该图案实际占用的像素宽度换算成帧数，再加一个随机间隔，
-// 保证不同图案之间不会互相重叠，同时让刷新密度直接跟着图案宽度走。
 let spawnCooldown = 40;
 
-// 跳跃抛物线的物理参数，需要和 Player 的 gravity / jumpForce 保持一致，
-// 这样"道具铺在跳跃路径上"才会跟玩家真实的跳跃轨迹对得上。
 const ARC_GRAVITY = 0.6;
 const ARC_JUMP_FORCE = -12;
-// 实测（按实际离散帧模拟，不是连续公式估算）：单次起跳从离地到落地正好是 40 帧，
-// 且中途无法提前落地——这意味着"接连两个障碍"之间，无论如何都要留出至少一个完整跳跃周期，
-// 否则落地时机和下一次起跳的时机会互相冲突，变成谁也躲不掉的死局。下面的连招/难度设计都基于这个数。
 const ARC_FLIGHT_FRAMES = 40;
 
-// ===== 难度里程碑 / 分段感 =====
-// 每跑过 MILESTONE_DISTANCE 的距离进入下一个"强度等级"（difficultyTier）：
-// 障碍连招出现得更频繁、连招之间的余量收得更紧一点、当前速度朝速度上限冲刺得更快，
-// 并弹一条提示，让玩家明确感觉到"游戏在变难"，而不是数值悄悄涨上去。
-// MAX_DIFFICULTY_TIER 给所有难度曲线都封了顶，保证游戏后期依然是"更快更密"而不是"直接不可能"。
 const MILESTONE_DISTANCE = 400;
 const MAX_DIFFICULTY_TIER = 6;
 let difficultyTier = 0;
@@ -774,8 +723,6 @@ function checkMilestone() {
         difficultyTier = tier;
         milestoneBannerText = `WAVE ${difficultyTier + 1} · SPEED UP!`;
         milestoneBannerUntil = Date.now() + 1600;
-        // 只调快"朝 MAX_SPEED 冲刺"的速率，不动 MAX_SPEED 本身，
-        // 这样动画封顶（ANIM_SPEED_CAP）等既有平衡不会被打破。
         speedAccel = Math.min(0.0008 + difficultyTier * 0.00018, 0.0035);
     }
 }
@@ -783,13 +730,12 @@ function checkMilestone() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
-// 图案①：孤立的加速/特殊道具（保留原有的 ITEM2 / ITEM3 触发逻辑）
 function spawnPatternSpecialItem() {
     const itemRand = Math.random();
-    if (currentSkin === 'char3' && !hasTriggeredItem2ThisRound && itemRand < 0.2) {
+    if (currentSkin === 'char3' && !hasTriggeredItem2ThisRound && itemRand < 0.4) {
         items.push(new Item('ITEM2'));
         hasTriggeredItem2ThisRound = true;
-    } else if (!hasTriggeredItem3ThisRound && itemRand < 0.3) {
+    } else if (!hasTriggeredItem3ThisRound && itemRand < 0.5) {
         items.push(new Item('ITEM3'));
         hasTriggeredItem3ThisRound = true;
     } else {
@@ -798,18 +744,12 @@ function spawnPatternSpecialItem() {
     return 70;
 }
 
-// 图案②：单个障碍物（矮/高随机）
 function spawnPatternSingleObstacle() {
     const type = Math.random() > 0.5 ? 'LOW' : 'HIGH';
     obstacles.push(new Obstacle(type));
     return 90;
 }
 
-// 图案③：障碍物连着障碍物——比如刚跳过一个矮障碍物，紧接着又要跳一个高的。
-// 之前这里的间距是固定的 125~180px，换算成帧数后经常小于单次起跳需要的 40 帧，
-// 相当于要求玩家在"还没落地"的时候就躲开下一个障碍——这是真正做不到的，而不是手不够快。
-// 现在改成"至少一个完整跳跃周期 + 缓冲帧"来定间距：缓冲帧会随难度等级收紧但设了下限，
-// 保证连招永远是"紧凑但可行"，而不是"数学上就躲不开"。
 function spawnPatternObstacleChain() {
     const firstType = Math.random() > 0.5 ? 'LOW' : 'HIGH';
     const secondType = Math.random() > 0.5 ? 'LOW' : 'HIGH';
@@ -823,7 +763,6 @@ function spawnPatternObstacleChain() {
     obstacles.push(new Obstacle(secondType, gap1));
 
     let farthest = gap1;
-    // 三连障碍只在难度等级达到一定程度后才会出现，且概率不高，避免过早劝退
     if (difficultyTier >= 2 && Math.random() < 0.2) {
         const thirdType = Math.random() > 0.5 ? 'LOW' : 'HIGH';
         const bufferFrames2 = minBufferFrames + Math.random() * 14;
@@ -834,28 +773,21 @@ function spawnPatternObstacleChain() {
     return farthest + 90;
 }
 
-// 图案④：道具路径——沿着一次真实跳跃的抛物线铺一串 ITEM1，
-// 障碍物就卡在抛物线的高点正下方，只有掐点起跳、沿着道具轨迹走位，
-// 才能既吃到道具又越过障碍物。
 function spawnPatternItemPath() {
     const type = Math.random() > 0.5 ? 'LOW' : 'HIGH';
-    const speedRef = Math.max(gameSpeed, 3); // 生成时的参考速度，用来把"帧"换算成"像素"
+    const speedRef = Math.max(gameSpeed, 3);
 
-    // 在腾空时间内采样几个点，跳过起跳/落地瞬间贴地的那两端，
-    // 让道具更明显地沿着弧线分布。
     const sampleTs = [4, 9, 14, 20, 26, 31, 36].filter(t => t < ARC_FLIGHT_FRAMES - 2);
 
     let maxOffsetPx = 0;
     sampleTs.forEach(t => {
-        const dy = ARC_JUMP_FORCE * t + 0.5 * ARC_GRAVITY * t * t; // 负值＝离地高度
+        const dy = ARC_JUMP_FORCE * t + 0.5 * ARC_GRAVITY * t * t;
         const y = (groundY - 35) + dy;
         const xOffset = t * speedRef;
         items.push(new Item('ITEM1', xOffset, y));
         maxOffsetPx = Math.max(maxOffsetPx, xOffset);
     });
 
-    // 障碍物放在抛物线接近最高点的位置（腾空时间中段），
-    // 这样"沿道具轨迹跳"天然就能越过它。
     const obstacleT = ARC_FLIGHT_FRAMES / 2 + (Math.random() * 6 - 3);
     const obstacleOffset = Math.max(obstacleT * speedRef - 30, 60);
     obstacles.push(new Obstacle(type, obstacleOffset));
@@ -871,27 +803,21 @@ function spawnObjects() {
     const hasActiveItem = items.some(i => i.active);
     let spanPx;
 
-    // 连招图案的占比随难度等级小幅提升，但封了顶，不会无限堆叠到失控
     const specialWeight = 0.10;
     const pathWeight = 0.22;
     const chainWeight = Math.min(0.28 + difficultyTier * 0.02, 0.38);
 
     if (rand < specialWeight && !hasActiveItem) {
-        // 单独的加速/特殊道具，保持稀有度，不跟别的图案挤在一起
         spanPx = spawnPatternSpecialItem();
     } else if (rand < specialWeight + pathWeight) {
-        // 道具路径 + 嵌入其中的障碍物
         spanPx = spawnPatternItemPath();
     } else if (rand < specialWeight + pathWeight + chainWeight) {
-        // 障碍物连着障碍物
         spanPx = spawnPatternObstacleChain();
     } else {
-        // 单个障碍物
         spanPx = spawnPatternSingleObstacle();
     }
 
     const framesForSpan = spanPx / Math.max(gameSpeed, 3);
-    // 图案之间的间隔下限随难度等级收紧，但始终保留基本的反应时间
     const minGap = Math.max(28 - difficultyTier * 2, 14);
     const gapFrames = minGap + Math.random() * 26;
     spawnCooldown = Math.max(18, Math.round(framesForSpan + gapFrames));
@@ -1074,14 +1000,11 @@ characters.forEach(char => {
     selectCharImages[char] = new Image();
     selectCharImages[char].src = `images/${char}_idle.png`;
 });
-// ???角色（内部标识char4）选角页面使用专属新贴图，不影响游戏内run/jump及game over待机（仍用char4_idle.png等）
 selectCharImages['char4'].src = 'images/char4_select.png';
 
 function drawCharacterSprite(charName, x, y, scale = 0.15, frameIndex = 0) {
     const tempImg = selectCharImages[charName];
     if (tempImg.complete && tempImg.width > 0) {
-        // char4的选角贴图（char4_select.png）是静态整图，不是4帧精灵图，
-        // 不能按 /4 切割播放，否则会显示错误的裁切区域。
         const isStaticSelectImage = charName === 'char4';
         const srcW = isStaticSelectImage ? tempImg.width : tempImg.width / 4;
         const srcH = tempImg.height;
@@ -1093,9 +1016,6 @@ function drawCharacterSprite(charName, x, y, scale = 0.15, frameIndex = 0) {
 }
 
 function gameLoop(timestamp) {
-    // 无论屏幕刷新率是多少，requestAnimationFrame 本身照常每次vsync都调用一次，
-    // 用来保证画面尽量流畅；但下面真正的游戏逻辑（含渲染）被限制成固定60次/秒才执行一次，
-    // 多出来的vsync直接跳过，这样120/144Hz屏幕不会导致速度变快。
     requestAnimationFrame(gameLoop);
 
     if (timestamp === undefined) timestamp = performance.now();
@@ -1103,8 +1023,6 @@ function gameLoop(timestamp) {
     if (elapsed < FRAME_DURATION) {
         return;
     }
-    // 用取模的方式推进 lastFrameTime，而不是直接等于 timestamp，
-    // 这样即使切后台很久再切回来，也只会正常跑一帧，不会攒一堆帧狂追赶（避免"回来后疯狂加速"）。
     lastFrameTime = timestamp - (elapsed % FRAME_DURATION);
 
     if (isSpecialActive) {
@@ -1175,7 +1093,6 @@ function gameLoop(timestamp) {
 
     if (gameState === 'PLAYING' && Date.now() < milestoneBannerUntil) {
         const remaining = milestoneBannerUntil - Date.now();
-        // 淡入淡出：出现和消失各占200ms，中间保持满不透明
         const alpha = remaining > 1400 ? (1600 - remaining) / 200
                      : remaining < 200 ? remaining / 200
                      : 1;
@@ -1466,8 +1383,6 @@ specialImages['char4'].src = 'images/char4_run.png';
 specialImages['bg'].src = 'images/special_bg.gif';
 
 function renderSpecialPage(time) {
-    // 背景动图交给下方 #special-overlay 的 CSS background 播放（canvas.drawImage 只能画出GIF的静止帧，
-    // 会导致动图卡住不动），这里只清空canvas，让CSS背景透出来即可。
     specialCtx.clearRect(0, 0, specialCanvas.width, specialCanvas.height);
 }
 
