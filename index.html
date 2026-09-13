@@ -1,0 +1,1444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>miyavirun</title>
+    <audio id="sfx-item" src="audio/item_sound.mp3" preload="auto"></audio>
+    <audio id="sfx-jump" src="audio/jump_sound.mp3" preload="auto"></audio>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #15151a; 
+            background-image: 
+                linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), 
+                url('images/bg_room.jpg'); 
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100dvh;
+            font-family: 'Courier New', Courier, monospace;
+            color: #fff;
+            overflow: hidden;
+        }
+
+        .retro-monitor {
+            position: relative;
+            aspect-ratio: 2 / 1;
+            width: min(95vw, 150dvh);
+            height: auto;
+            background: #c5bcae; 
+            border: 16px solid #b3a795;
+            border-radius: 24px;
+            box-shadow: 
+                inset -4px -4px 0px #8f8371,
+                inset 4px 4px 0px #ebdcd0,
+                0px 15px 30px rgba(0,0,0,0.7), 
+                0px 30px 60px rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px;
+            transform: translateZ(0);
+            will-change: transform;
+            contain: layout paint;
+        }
+
+        .screen-bezel {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background: #151515;
+            border-radius: 14px;
+            padding: 8px;
+            border: 4px solid #8f8371;
+            overflow: hidden;
+        }
+
+        .screen-glass {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            image-rendering: pixelated; 
+            background: #000;
+            transform: translateZ(0);
+            will-change: transform;
+        }
+
+        .monitor-controls {
+            position: absolute;
+            bottom: -32px;
+            right: 20px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .power-btn {
+            width: 12px; height: 12px;
+            background: #555; border-radius: 2px;
+            border-bottom: 2px solid #333;
+        }
+        .power-led {
+            width: 6px; height: 6px;
+            background: #39ff14; 
+            border-radius: 50%;
+            box-shadow: 0 0 6px #39ff14;
+        }
+
+        #special-overlay {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%; 
+            background: url('images/special_bg.gif') no-repeat center center;
+            background-size: cover;
+            z-index: 100; 
+        }
+
+        #specialCanvas {
+            width: 100%;
+            height: 100%;
+            background: transparent;
+        }
+
+        #ui-panel {
+            margin-bottom: 15px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.6); 
+            padding: 6px 12px;
+            border-radius: 4px;
+            backdrop-filter: blur(4px); 
+        }
+        select, button {
+            background: #333; color: #fff; border: 1px solid #aaa;
+            padding: 3px 6px; cursor: pointer; font-family: inherit; font-size: 12px;
+        }
+        #high-score-board {
+            background: #222; border: 1px dashed #f1c40f;
+            padding: 3px 6px; color: #f1c40f; font-weight: bold; font-size: 12px;
+        }
+        #instructions {
+            margin-top: 15px;
+            color: #ccc;
+            font-size: 15px;
+            text-align: center;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8); 
+        }
+
+        @media (max-height: 500px) {
+            .retro-monitor {
+                width: min(80vw, 160dvh);
+                border-width: 6px;
+                border-radius: 10px;
+                padding: 4px;
+            }
+            .screen-bezel { padding: 2px; border-width: 2px; }
+            #instructions { display: none; }
+        }
+
+        @media (max-width: 600px) {
+            .retro-monitor {
+                width: min(80vw, 160dvh);
+                border-width: 8px;
+                border-radius: 12px;
+                padding: 4px;
+            }
+            .screen-bezel { padding: 4px; border-width: 2px; }
+            #instructions { font-size: 10px; }
+        }
+
+        #rotate-notice {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 9999;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #f1c40f;
+            font-size: 18px;
+            text-align: center;
+            padding: 20px;
+        }
+
+        @media screen and (orientation: portrait) and (max-width: 900px) {
+            #rotate-notice {
+                display: flex;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="rotate-notice">
+        <div style="font-size: 40px; margin-bottom: 10px;">🔄</div>
+        <div>Please rotate your phone</div>
+    </div>
+
+    <div class="retro-monitor">
+        <div id="creditsLine" style="position:absolute; left:0; top:-40px; font:bold 14px 'Courier New', monospace; color:rgba(136,136,136,0.6); text-shadow:0 2px 4px rgba(0,0,0,0.8); white-space:nowrap; text-align:left; pointer-events:none; z-index:10;">Producer——@Liiihwen; Art——@Qian</div>
+        <div class="screen-bezel">
+            <div class="screen-glass">
+                
+<canvas id="gameCanvas"></canvas>
+                <div id="special-overlay">
+                    <canvas id="specialCanvas"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="monitor-controls">
+            <div class="power-btn"></div>
+            <div class="power-led"></div>
+        </div>
+    </div>
+    
+    <div id="instructions"><strong>Press the spacebar or tap the screen to jump</strong></div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = false; 
+
+const INITIAL_SPEED = 5; 
+const MAX_SPEED = 12;
+let currentSpeed = INITIAL_SPEED;
+
+const TARGET_FPS = 60;
+const FRAME_DURATION = 1000 / TARGET_FPS; 
+let lastFrameTime = 0;
+
+const ANIM_SPEED_CAP = 8;
+
+const JUMP_VISUAL_SCALE = 0.95;
+
+const skinToSceneMap = {
+    'char1': { scene: '1', ext: 'png' },
+    'char2': { scene: '2', ext: 'png' },
+    'char3': { scene: '3', ext: 'png' },
+    'char4': { scene: '4', ext: 'png' }
+};
+const characters = ['char1', 'char2', 'char3', 'char4'];
+const characterDisplayNames = {
+    'char1': 'Oresama',
+    'char2': 'Kabuki Boiz',
+    'char3': 'Rock star',
+    'char4': '???'
+};
+
+const jumpSfx = document.getElementById('sfx-jump');
+function playJumpSfx() {
+    if (jumpSfx) {
+        jumpSfx.currentTime = 0;
+        jumpSfx.play().catch(err => console.log("Jumping sound effects require interaction to play"));
+    }
+}
+
+let gameState = 'START'; 
+let hoveredMenuIndex = -1; 
+let isSelectBtnHovered = false;
+
+let returnToRestartAfterSelection = false; 
+
+function updateHoverState(x, y) {
+    if (gameState === 'START' || gameState === 'GAMEOVER') {
+        const menuCenterX = canvas.width / 2;
+        const hitHalfWidth = 105;
+
+        if (x >= menuCenterX - hitHalfWidth && x <= menuCenterX + hitHalfWidth &&
+            y >= 225 && y <= 265) {
+            hoveredMenuIndex = 0;
+        } else if (x >= menuCenterX - hitHalfWidth && x <= menuCenterX + hitHalfWidth &&
+                   y >= 265 && y <= 305) {
+            hoveredMenuIndex = 1;
+        } else if (x >= menuCenterX - hitHalfWidth && x <= menuCenterX + hitHalfWidth &&
+                   y >= 305 && y <= 345) {
+            hoveredMenuIndex = 2;
+        } else {
+            hoveredMenuIndex = -1;
+        }
+    } else if (gameState === 'CHARACTER_SELECT') {
+        if (y >= canvas.height - 80 && y <= canvas.height - 30) {
+            isSelectBtnHovered = true;
+        } else {
+            isSelectBtnHovered = false;
+        }
+    } else if (gameState === 'INSTRUCTIONS') {
+        hoveredMenuIndex = (x >= 10 && x <= 150 && y >= 5 && y <= 60) ? 3 : -1;
+    }
+}
+
+function clearHoverState() {
+    hoveredMenuIndex = -1;
+    isSelectBtnHovered = false;
+}
+
+let characterIndex = 0;
+let currentSkin = 'char1';
+let currentScene = '1';
+let score = 0;
+let distance = 0;
+let gameSpeed = INITIAL_SPEED;
+let boostTimer = 0;
+let speedAccel = 0.0008; 
+let menuIndex = 0;
+let selectAnimFrame = 0;
+
+canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const mouseX = (e.clientX - rect.left) * scaleX;
+    const mouseY = (e.clientY - rect.top) * scaleY;
+
+    updateHoverState(mouseX, mouseY);
+});
+
+canvas.addEventListener('mouseleave', clearHoverState);
+
+let cachedSrcW = 32;
+let cachedSrcH = 40;
+let groundY = 340;
+const GROUND_VISUAL_OFFSET = 2;
+
+const itemSfx = document.getElementById('sfx-item');
+
+function playItemSfx() {
+    if (itemSfx) {
+        itemSfx.currentTime = 0;
+        itemSfx.play().catch(err => console.log("Sound effects require interactive unlocking to play"));
+    }
+}
+
+let hasTriggeredItem2ThisRound = false; 
+let hasTriggeredItem3ThisRound = false;
+
+let isSpecialActive = false;
+let jumpPenaltyInvincibleUntil = 0;
+let jumpPenaltyFlashUntil = 0;
+const specialCanvas = document.getElementById('specialCanvas');
+const specialCtx = specialCanvas.getContext('2d');
+
+function resizeCanvas() {
+    canvas.width = 800;
+    canvas.height = 400;
+    ctx.imageSmoothingEnabled = false; 
+    groundY = 340; 
+    if (typeof player !== 'undefined' && player) {
+        const dims = player.getFrameDimensions();
+        player.y = groundY - dims.drawH + GROUND_VISUAL_OFFSET;
+    }
+}
+
+const rotateNotice = document.getElementById('rotate-notice');
+function updateRotateNotice() {
+    if (!rotateNotice) return;
+    const isPortrait = (window.matchMedia && window.matchMedia('(orientation: portrait)').matches)
+        || window.innerWidth < window.innerHeight;
+    const isNarrow = Math.min(window.innerWidth, window.innerHeight) <= 900;
+    rotateNotice.style.display = (isPortrait && isNarrow) ? 'flex' : 'none';
+}
+window.addEventListener('resize', updateRotateNotice);
+window.addEventListener('orientationchange', () => {
+    updateRotateNotice();
+    setTimeout(updateRotateNotice, 150);
+    setTimeout(updateRotateNotice, 400);
+});
+if (window.matchMedia) {
+    const orientationQuery = window.matchMedia('(orientation: portrait)');
+    if (orientationQuery.addEventListener) {
+        orientationQuery.addEventListener('change', () => setTimeout(updateRotateNotice, 100));
+    } else if (orientationQuery.addListener) {
+        orientationQuery.addListener(() => setTimeout(updateRotateNotice, 100));
+    }
+}
+if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', updateRotateNotice);
+}
+updateRotateNotice();
+
+let highScore = localStorage.getItem('pixel_runner_highscore') || 0;
+
+function updateHighScore() {
+    let finalScore = Math.floor(score);
+    if (finalScore > highScore) {
+        highScore = finalScore;
+        localStorage.setItem('pixel_runner_highscore', highScore);
+        return true; 
+    }
+    return false;
+}
+
+const bgm = new Audio();
+bgm.src = 'audio/bgm.mp3'; 
+bgm.loop = true;             
+bgm.volume = 0.4;            
+bgm.muted = true;
+
+function switchBGM(characterName) {}
+
+function unmuteAudio() {
+    if (bgm.muted) {
+        bgm.muted = false;
+        bgm.play().catch(() => {}); 
+    }
+}
+window.addEventListener('click', unmuteAudio);
+window.addEventListener('touchstart', unmuteAudio);
+window.addEventListener('keydown', unmuteAudio);
+
+const characterImages = {
+    idle: new Image(),
+    run: new Image(),
+    jump: new Image()
+};
+const imgObstacleLow = new Image();
+const imgObstacleHigh = new Image();
+const imgItem = new Image();
+const imgItem2 = new Image(); 
+const imgItem3 = new Image(); 
+const imgBackground = new Image();
+const imgTitleLogo = new Image(); 
+
+characterImages.idle.src = 'images/char1_idle.png';
+characterImages.run.src = 'images/char1_run.png';
+characterImages.jump.src = 'images/char1_jump.png';
+imgObstacleLow.src = 'images/obstacle_low.png';    
+imgObstacleHigh.src = 'images/obstacle_high.png';  
+imgItem.src = 'images/boost_item.png';             
+imgItem2.src = 'images/item2.png'; 
+imgItem3.src = 'images/item3.png'; 
+imgBackground.src = 'images/bg_1.png';             
+imgTitleLogo.src = 'images/title_logo.png';  
+
+function changeCharacter(dir = 1) {
+    characterIndex = (characterIndex + dir + characters.length) % characters.length;
+    currentSkin = characters[characterIndex];
+    player.animFrame = 0;
+    characterImages.idle.src = `images/${currentSkin}_idle.png`;
+    characterImages.run.src = `images/${currentSkin}_run.png`;
+    characterImages.jump.src = `images/${currentSkin}_jump.png`;
+
+    if (skinToSceneMap[currentSkin]) {
+        currentScene = skinToSceneMap[currentSkin].scene;
+        let ext = skinToSceneMap[currentSkin].ext;
+        imgBackground.src = `images/bg_${currentScene}.${ext}`;
+    }
+    switchBGM(currentSkin);
+}
+
+function applySelectedSkin() {
+    currentSkin = characters[characterIndex];
+    characterImages.idle.src = `images/${currentSkin}_idle.png`;
+    characterImages.run.src = `images/${currentSkin}_run.png`;
+    characterImages.jump.src = `images/${currentSkin}_jump.png`;
+    switchBGM(currentSkin);
+}
+
+const frameTrimCache = new WeakMap();
+
+function getFrameTrims(img, frameCount) {
+    const cached = frameTrimCache.get(img);
+    if (cached && cached.src === img.src && cached.frameCount === frameCount) {
+        return cached.trims;
+    }
+
+    const frameW = Math.floor(img.width / frameCount);
+    const frameH = img.height;
+    const trims = [];
+
+    try {
+        const off = document.createElement('canvas');
+        off.width = img.width;
+        off.height = img.height;
+        const offCtx = off.getContext('2d');
+        offCtx.drawImage(img, 0, 0);
+
+        for (let i = 0; i < frameCount; i++) {
+            const data = offCtx.getImageData(i * frameW, 0, frameW, frameH).data;
+            let minX = frameW, minY = frameH, maxX = -1, maxY = -1;
+            for (let y = 0; y < frameH; y++) {
+                for (let x = 0; x < frameW; x++) {
+                    if (data[(y * frameW + x) * 4 + 3] > 8) {
+                        if (x < minX) minX = x;
+                        if (x > maxX) maxX = x;
+                        if (y < minY) minY = y;
+                        if (y > maxY) maxY = y;
+                    }
+                }
+            }
+            trims.push(maxX >= minX && maxY >= minY
+                ? { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 }
+                : { x: 0, y: 0, w: frameW, h: frameH });
+        }
+    } catch (err) {
+        for (let i = 0; i < frameCount; i++) {
+            trims.push({ x: 0, y: 0, w: frameW, h: frameH });
+        }
+    }
+
+    frameTrimCache.set(img, { src: img.src, frameCount, trims });
+    return trims;
+}
+
+// Player
+class Player {
+    constructor() {
+        this.x = 100; 
+        this.y = 200;
+        this.scale = 0.5; 
+        this.width = 32;   
+        this.height = 40;  
+        this.vy = 0;
+        this.gravity = 0.6;
+        this.jumpForce = -12; 
+        this.jumpCount = 0;
+        this.status = 'IDLE'; 
+        this.animFrame = 0;   
+    }
+
+    getCurrentImage() {
+        if (this.status === 'IDLE') return characterImages.idle;
+        if (this.status === 'JUMPING') return characterImages.jump;
+        return characterImages.run;
+    }
+
+    getFrameDimensions() {
+        const img = this.getCurrentImage();
+        if (img.complete && img.width > 0) {
+            const frameCount =
+                    this.status === 'IDLE' ? 4 :
+                    this.status === 'JUMPING' ? 8 : 6;
+            cachedSrcW = img.width / frameCount;
+            cachedSrcH = img.height;
+        }
+
+        let drawW = cachedSrcW * this.scale;
+        let drawH = cachedSrcH * this.scale;
+
+        // Jump uses 8 frames, but its displayed size matches the running character.
+        if (this.status === 'JUMPING') {
+            const runImg = characterImages.run;
+            if (runImg.complete && runImg.width > 0) {
+                const runSrcW = runImg.width / 6;
+                const runSrcH = runImg.height;
+                drawW = runSrcW * this.scale;
+                drawH = runSrcH * this.scale;
+            }
+        }
+
+        return { srcW: cachedSrcW, srcH: cachedSrcH, drawW, drawH };
+    }
+
+    update() {
+        const previousStatus = this.status;
+        if (gameState === 'START' || gameState === 'GAMEOVER') {
+            this.status = 'IDLE';
+        } else if (this.y < groundY - this.height + GROUND_VISUAL_OFFSET) { 
+            this.status = 'JUMPING';
+        } else {
+            this.status = 'RUNNING';
+            this.jumpCount = 0;
+        }
+
+        if (this.status !== previousStatus) {
+            this.animFrame = 0;
+        }
+
+        const dims = this.getFrameDimensions();
+        this.width = dims.drawW;
+        this.height = dims.drawH;
+
+        if (this.status !== 'IDLE') {
+            this.vy += this.gravity;
+            this.y += this.vy;
+        }
+
+        if (this.y >= groundY - this.height + GROUND_VISUAL_OFFSET) {
+            this.y = groundY - this.height + GROUND_VISUAL_OFFSET;
+            this.vy = 0;
+        }
+
+        if (this.status === 'RUNNING' || this.status === 'JUMPING') {
+            this.animFrame += Math.min(gameSpeed, ANIM_SPEED_CAP) * 0.035;
+        } else if (this.status === 'IDLE') {
+            this.animFrame += 0.06;
+        }
+    }
+
+    jump() {
+        if (gameState !== 'PLAYING') return;
+        if (this.jumpCount >= 2) {
+            const groundLevel = groundY - this.height + GROUND_VISUAL_OFFSET;
+            this.y = groundLevel;
+            this.vy = 0;
+            this.jumpCount = 0;
+            this.status = 'RUNNING';
+            score -= 10;
+            jumpPenaltyInvincibleUntil = Date.now() + 2000;
+            jumpPenaltyFlashUntil = Date.now() + 1000;
+            playJumpSfx();
+            return;
+        }
+
+        const groundLevel = groundY - this.height + GROUND_VISUAL_OFFSET;
+        const isGrounded = this.y >= groundLevel - 1 && this.vy >= 0;
+
+        if (isGrounded) {
+            this.y = groundLevel;
+            this.vy = this.jumpForce;
+            this.jumpCount = 1;
+            this.status = 'JUMPING';
+            playJumpSfx();
+            return;
+        }
+        this.vy = this.jumpForce;
+        this.jumpCount = 2;
+        this.status = 'JUMPING';
+        playJumpSfx();
+    }
+
+    draw() {
+        const dims = this.getFrameDimensions();
+        const img = this.getCurrentImage();
+        ctx.save();
+        ctx.translate(this.x, this.y);
+
+        let frameIndex = 0;
+        if (this.status === 'RUNNING') {
+            frameIndex = Math.floor(this.animFrame) % 6;
+        } else if (this.status === 'JUMPING') {
+            frameIndex = Math.floor(this.animFrame) % 8;
+        } else if (this.status === 'IDLE') {
+            frameIndex = Math.floor(this.animFrame) % 4;
+        }
+
+        if (img.width > 0) {
+            const flashing = Date.now() < jumpPenaltyFlashUntil;
+            if (!flashing || Math.floor(Date.now() / 100) % 2 === 0) {
+                if (this.status === 'JUMPING') {
+                    this.drawJumpFrame(img, frameIndex, dims);
+                } else {
+                    const frameX = frameIndex * dims.srcW;
+                    ctx.drawImage(
+                        img,
+                        frameX, 0, dims.srcW, dims.srcH,
+                        0, 0, dims.drawW, dims.drawH
+                    );
+                }
+            }
+        }
+        ctx.restore();
+    }
+
+    drawJumpFrame(img, frameIndex, dims) {
+        const frameW = dims.srcW;
+        const trims = getFrameTrims(img, 8);
+        const trim = trims[frameIndex] || { x: 0, y: 0, w: frameW, h: dims.srcH };
+
+        const drawW = dims.drawW * JUMP_VISUAL_SCALE;
+        const drawH = dims.drawH * JUMP_VISUAL_SCALE;
+        const drawX = (dims.drawW - drawW) / 2; 
+        const drawY = dims.drawH - drawH;    
+
+        ctx.drawImage(
+            img,
+            frameIndex * frameW + trim.x, trim.y, trim.w, trim.h,
+            drawX, drawY, drawW, drawH
+        );
+    }
+}
+
+// Obstacle
+class Obstacle {
+    constructor(type, xOffset = 0) {
+        this.type = type; 
+        this.x = canvas.width + 50 + xOffset;
+        this.width = 60; 
+        this.height = type === 'LOW' ? 30 : 80;
+        this.y = groundY - this.height + GROUND_VISUAL_OFFSET; 
+        this.passed = false;
+    }
+
+    update() {
+        this.x -= gameSpeed;
+    }
+
+    draw() {
+        if (this.type === 'LOW' && imgObstacleLow.complete && imgObstacleLow.width > 0) {
+            ctx.drawImage(imgObstacleLow, this.x, this.y, this.width, this.height);
+        } else if (this.type === 'HIGH' && imgObstacleHigh.complete && imgObstacleHigh.width > 0) {
+            ctx.drawImage(imgObstacleHigh, this.x, this.y, this.width, this.height);
+        }
+    }
+}
+
+//Item
+class Item {
+    constructor(type = 'ITEM1', xOffset = 0, yOverride = null) {
+        this.type = type;
+        this.x = canvas.width + 50 + xOffset;
+        this.size = 35;
+        this.y = yOverride !== null ? yOverride : 20 + Math.random() * (groundY - this.size - 20);
+
+        this.active = true;
+    }
+
+    update() {
+        this.x -= gameSpeed;
+    }
+
+    draw() {
+        if (!this.active) return;
+        const hoverY = this.y + Math.sin(Date.now() * 0.01) * 5;
+
+        ctx.save();
+
+        let targetImg = imgItem;
+        if (this.type === 'ITEM2') targetImg = imgItem2;
+        if (this.type === 'ITEM3') targetImg = imgItem3;
+
+        if (targetImg.complete && targetImg.width > 0) {
+            ctx.drawImage(targetImg, this.x, hoverY, this.size, this.size);
+        } else {
+            ctx.fillStyle = this.type === 'ITEM1' ? '#f1c40f' : (this.type === 'ITEM2' ? '#ff4081' : '#00e5ff');
+            ctx.beginPath();
+            ctx.arc(this.x + this.size/2, hoverY + this.size/2, this.size/2, 0, Math.PI * 2);
+            ctx.fill();
+        } 
+        ctx.restore();
+    }
+}
+
+const player = new Player();
+let obstacles = [];
+let items = [];
+let spawnCooldown = 40;
+
+const ARC_GRAVITY = 0.6;
+const ARC_JUMP_FORCE = -12;
+const ARC_FLIGHT_FRAMES = 40;
+
+const MILESTONE_DISTANCE = 400;
+const MAX_DIFFICULTY_TIER = 6;
+let difficultyTier = 0;
+let milestoneBannerText = '';
+let milestoneBannerUntil = 0;
+
+function checkMilestone() {
+    const tier = Math.min(Math.floor(distance / MILESTONE_DISTANCE), MAX_DIFFICULTY_TIER);
+    if (tier > difficultyTier) {
+        difficultyTier = tier;
+        milestoneBannerText = `WAVE ${difficultyTier + 1} · SPEED UP!`;
+        milestoneBannerUntil = Date.now() + 1600;
+        speedAccel = Math.min(0.0008 + difficultyTier * 0.00018, 0.0035);
+    }
+}
+
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+function spawnPatternSpecialItem() {
+    const itemRand = Math.random();
+    if (currentSkin === 'char3' && !hasTriggeredItem2ThisRound && itemRand < 0.2) {
+        items.push(new Item('ITEM2'));
+        hasTriggeredItem2ThisRound = true;
+    } else if (!hasTriggeredItem3ThisRound && itemRand < 0.3) {
+        items.push(new Item('ITEM3'));
+        hasTriggeredItem3ThisRound = true;
+    } else {
+        items.push(new Item('ITEM1'));
+    }
+    return 70;
+}
+
+function spawnPatternSingleObstacle() {
+    const type = Math.random() > 0.5 ? 'LOW' : 'HIGH';
+    obstacles.push(new Obstacle(type));
+    return 90;
+}
+
+function spawnPatternObstacleChain() {
+    const firstType = Math.random() > 0.5 ? 'LOW' : 'HIGH';
+    const secondType = Math.random() > 0.5 ? 'LOW' : 'HIGH';
+    const speedRef = Math.max(gameSpeed, 3);
+
+    const minBufferFrames = Math.max(22 - difficultyTier * 2, 10);
+    const bufferFrames1 = minBufferFrames + Math.random() * 14;
+    const gap1 = (ARC_FLIGHT_FRAMES + bufferFrames1) * speedRef;
+
+    obstacles.push(new Obstacle(firstType, 0));
+    obstacles.push(new Obstacle(secondType, gap1));
+
+    let farthest = gap1;
+    if (difficultyTier >= 2 && Math.random() < 0.2) {
+        const thirdType = Math.random() > 0.5 ? 'LOW' : 'HIGH';
+        const bufferFrames2 = minBufferFrames + Math.random() * 14;
+        const gap2 = (ARC_FLIGHT_FRAMES + bufferFrames2) * speedRef;
+        obstacles.push(new Obstacle(thirdType, gap1 + gap2));
+        farthest = gap1 + gap2;
+    }
+    return farthest + 90;
+}
+
+function spawnPatternItemPath() {
+    const type = Math.random() > 0.5 ? 'LOW' : 'HIGH';
+    const speedRef = Math.max(gameSpeed, 3); 
+
+    const sampleTs = [4, 9, 14, 20, 26, 31, 36].filter(t => t < ARC_FLIGHT_FRAMES - 2);
+
+    let maxOffsetPx = 0;
+    sampleTs.forEach(t => {
+        const dy = ARC_JUMP_FORCE * t + 0.5 * ARC_GRAVITY * t * t;
+        const y = (groundY - 35) + dy;
+        const xOffset = t * speedRef;
+        items.push(new Item('ITEM1', xOffset, y));
+        maxOffsetPx = Math.max(maxOffsetPx, xOffset);
+    });
+
+    const obstacleT = ARC_FLIGHT_FRAMES / 2 + (Math.random() * 6 - 3);
+    const obstacleOffset = Math.max(obstacleT * speedRef - 30, 60);
+    obstacles.push(new Obstacle(type, obstacleOffset));
+
+    return maxOffsetPx + 90;
+}
+
+function spawnObjects() {
+    spawnCooldown--;
+    if (spawnCooldown > 0) return;
+
+    const rand = Math.random();
+    const hasActiveItem = items.some(i => i.active);
+    let spanPx;
+
+    const specialWeight = 0.10;
+    const pathWeight = 0.22;
+    const chainWeight = Math.min(0.28 + difficultyTier * 0.02, 0.38);
+
+    if (rand < specialWeight && !hasActiveItem) {
+        spanPx = spawnPatternSpecialItem();
+    } else if (rand < specialWeight + pathWeight) {
+        spanPx = spawnPatternItemPath();
+    } else if (rand < specialWeight + pathWeight + chainWeight) {
+        spanPx = spawnPatternObstacleChain();
+    } else {
+        spanPx = spawnPatternSingleObstacle();
+    }
+
+    const framesForSpan = spanPx / Math.max(gameSpeed, 3);
+    const minGap = Math.max(28 - difficultyTier * 2, 14);
+    const gapFrames = minGap + Math.random() * 26;
+    spawnCooldown = Math.max(18, Math.round(framesForSpan + gapFrames));
+}
+
+function checkCollisions() {
+    for (let obs of obstacles) {
+        const invincible = Date.now() < jumpPenaltyInvincibleUntil;
+        if (!invincible &&
+            player.x < obs.x + obs.width &&
+            player.x + player.width > obs.x &&
+            player.y < obs.y + obs.height &&
+            player.y + player.height > obs.y) {
+                gameState = 'GAMEOVER';
+                updateHighScore();
+        }
+        if (!obs.passed && obs.x + obs.width < player.x) {
+            obs.passed = true;
+            score += obs.type === 'HIGH' ? 20 : 10; 
+        }
+    }
+
+    for (let item of items) {
+        if (item.active &&
+            player.x < item.x + item.size &&
+            player.x + player.width > item.x &&
+            player.y < item.y + item.size &&
+            player.y + player.height > item.y) {
+                
+                item.active = false;
+                playItemSfx();
+
+                if (item.type === 'ITEM1') {
+                    boostTimer = 180; 
+                } else if (item.type === 'ITEM2') {
+                    currentSkin = 'char4';
+                    characterImages.idle.src = 'images/char4_idle.png';
+                    characterImages.run.src = 'images/char4_run.png';
+                    characterImages.jump.src = 'images/char4_jump.png';
+                    switchBGM('char4');
+                } else if (item.type === 'ITEM3') {
+                    triggerSpecialEvent();
+                }
+        }
+    }
+}
+
+function handleSpeed() {
+    if (currentSpeed < MAX_SPEED) {
+        currentSpeed += speedAccel;
+    }
+
+    if (boostTimer > 0) {
+        boostTimer--;
+        gameSpeed = currentSpeed * 1.2;
+    } else {
+        gameSpeed = currentSpeed;
+    }
+}
+
+
+function drawInstructions() {
+    ctx.fillStyle = 'rgba(15, 15, 20, 0.97)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.textAlign = 'center';
+
+    // Title
+    ctx.font = 'bold 30px "Courier New"';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('HELP', canvas.width / 2, 58);
+
+    // Controls
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 18px "Courier New"';
+    ctx.fillStyle = '#76c3ff';
+    ctx.fillText('CONTROLS', 55, 90);
+
+    ctx.font = '16px "Courier New"';
+    ctx.fillStyle = '#dddddd';
+    ctx.fillText('SPACE / UP ARROW', 65, 122);
+    ctx.fillStyle = '#aaaaaa';
+    ctx.fillText('Jump. Press again in the air for a double jump.', 280, 122);
+
+    ctx.fillStyle = '#dddddd';
+    ctx.fillText('CLICK / TAP', 65, 152);
+    ctx.fillStyle = '#aaaaaa';
+    ctx.fillText('Jump on desktop or mobile.', 280, 152);
+
+    // Gameplay
+    ctx.font = 'bold 18px "Courier New"';
+    ctx.fillStyle = '#76c3ff';
+    ctx.fillText('GAMEPLAY', 55, 197);
+
+    ctx.font = '16px "Courier New"';
+    ctx.fillStyle = '#dddddd';
+    ctx.fillText('RUN', 65, 229);
+    ctx.fillStyle = '#aaaaaa';
+    ctx.fillText('Keep moving and survive as long as possible.', 280, 229);
+
+    ctx.fillStyle = '#dddddd';
+    ctx.fillText('AVOID', 65, 259);
+    ctx.fillStyle = '#aaaaaa';
+    ctx.fillText('Jump over low and high obstacles.', 280, 259);
+
+    ctx.fillStyle = '#dddddd';
+    ctx.fillText('COLLECT', 65, 289);
+    ctx.fillStyle = '#aaaaaa';
+    ctx.fillText('Pick up items for boosts and special effects.', 280, 289);
+
+    ctx.fillStyle = '#dddddd';
+    ctx.fillText('SCORE', 65, 319);
+    ctx.fillStyle = '#aaaaaa';
+    ctx.fillText('Distance, obstacles and items help you score.', 280, 319);
+
+    // Warning — same line spacing as the instructions above.
+    ctx.fillStyle = '#f1c40f';
+    ctx.fillText('WARNING', 65, 349);
+    ctx.fillStyle = '#aaaaaa';
+    ctx.fillText('Third jump: return to the ground immediately, -10', 280, 349);
+    ctx.fillText('points, but gain 2 seconds of invincibility.', 280, 379);
+
+    // Back option — top-left corner.
+    const isBackHovered = (hoveredMenuIndex === 3);
+    ctx.font = isBackHovered ? 'bold 22px "Courier New"' : 'bold 20px "Courier New"';
+    ctx.fillStyle = isBackHovered ? '#ffffff' : '#bcbcbc';
+    ctx.fillText('< BACK', 28, 32);
+
+    ctx.textAlign = 'left';
+}
+
+function drawCharacterSelect() {
+    selectAnimFrame += 0.06;
+    const currentSelectFrame = Math.floor(selectAnimFrame) % 4;
+
+    ctx.fillStyle = 'rgba(15, 15, 20, 0.95)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2 - 20;
+
+    const prevIndex = (characterIndex - 1 + characters.length) % characters.length;
+    const nextIndex = (characterIndex + 1) % characters.length;
+
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    drawCharacterSprite(characters[prevIndex], centerX - 180, centerY, 0.4, currentSelectFrame);
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    drawCharacterSprite(characters[nextIndex], centerX + 180, centerY, 0.4, currentSelectFrame);
+    ctx.restore();
+
+    drawCharacterSprite(characters[characterIndex], centerX, centerY, 0.6, currentSelectFrame);
+
+    drawTriangle(centerX - 90, centerY, 'left', '#e67e22', 20);
+    drawTriangle(centerX + 90, centerY, 'right', '#e67e22', 20);
+
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 24px "Courier New"';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText((characterDisplayNames[characters[characterIndex]] || characters[characterIndex]).toUpperCase(), centerX, centerY - 70);
+    ctx.restore();
+
+    const isSelectHovered = isSelectBtnHovered;
+    ctx.textAlign = 'center';
+    ctx.font = isSelectHovered ? 'bold 36px "Courier New"' : 'bold 30px "Courier New"';
+    ctx.fillStyle = isSelectHovered ? '#ffffff' : '#bcbcbc';
+    ctx.fillText('SELECT', centerX, canvas.height - 50);
+
+    if (isSelectHovered) {
+        drawTriangle(centerX - 90, canvas.height - 60, 'right', '#76c3ff', 12);
+    }
+}
+
+const selectCharImages = {};
+characters.forEach(char => {
+    selectCharImages[char] = new Image();
+    selectCharImages[char].src = `images/${char}_idle.png`;
+});
+selectCharImages['char4'].src = 'images/char4_select.png';
+
+function drawCharacterSprite(charName, x, y, scale = 0.15, frameIndex = 0) {
+    const tempImg = selectCharImages[charName];
+    if (tempImg.complete && tempImg.width > 0) {
+        const isStaticSelectImage = charName === 'char4';
+        const srcW = isStaticSelectImage ? tempImg.width : tempImg.width / 4;
+        const srcH = tempImg.height;
+        const drawW = srcW * scale;
+        const drawH = srcH * scale;
+        const frameX = isStaticSelectImage ? 0 : (frameIndex % 4) * srcW;
+        ctx.drawImage(tempImg, frameX, 0, srcW, srcH, x - drawW / 2, y - drawH / 2, drawW, drawH);
+    }
+}
+
+function gameLoop(timestamp) {
+    requestAnimationFrame(gameLoop);
+
+    if (timestamp === undefined) timestamp = performance.now();
+    const elapsed = timestamp - lastFrameTime;
+    if (elapsed < FRAME_DURATION) {
+        return;
+    }
+    lastFrameTime = timestamp - (elapsed % FRAME_DURATION);
+
+    if (isSpecialActive) {
+        return;
+    }
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (imgBackground.complete && imgBackground.width > 0) {
+        const bgMoveX = (distance * 0.5) % canvas.width; 
+        ctx.drawImage(imgBackground, -bgMoveX, 0, canvas.width, canvas.height);
+        ctx.drawImage(imgBackground, canvas.width - bgMoveX, 0, canvas.width, canvas.height);
+    } else {
+        ctx.fillStyle = '#222'; 
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    ctx.fillStyle = 'rgba(0,0,0,0.15)'; 
+    ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
+
+    if (gameState === 'PLAYING' || gameState === 'GAMEOVER') {
+        player.update(); 
+        player.draw(); 
+    }
+
+    if (gameState === 'CHARACTER_SELECT') {
+        drawCharacterSelect(); 
+        return; 
+    }
+
+    if (gameState === 'INSTRUCTIONS') {
+        drawInstructions();
+        return;
+    }
+
+    if (gameState === 'PLAYING') {
+        distance += gameSpeed * 0.1; 
+        score += 0.1; 
+
+        handleSpeed();
+        checkMilestone();
+        spawnObjects();
+
+        for (let i = obstacles.length - 1; i >= 0; i--) {
+            obstacles[i].update();
+            obstacles[i].draw();
+            if (obstacles[i].x < -50) obstacles.splice(i, 1);
+        }
+
+        for (let i = items.length - 1; i >= 0; i--) {
+            items[i].update();
+            items[i].draw();
+            if (items[i].x < -50) items.splice(i, 1);
+        }
+
+        checkCollisions();
+    }
+
+    ctx.fillStyle = '#fff';
+    ctx.font = '20px "Courier New"';
+    ctx.fillText(`SCORE: ${Math.floor(score)}`, 20, 40);
+    ctx.fillText(`DIST: ${Math.floor(distance)}m`, 20, 70);
+
+    if (boostTimer > 0) {
+        ctx.fillStyle = '#f1c40f';
+        ctx.fillText(`Boost!`, 20, 100);
+    }
+
+    if (gameState === 'PLAYING' && Date.now() < milestoneBannerUntil) {
+        const remaining = milestoneBannerUntil - Date.now();
+        const alpha = remaining > 1400 ? (1600 - remaining) / 200
+                     : remaining < 200 ? remaining / 200
+                     : 1;
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#f1c40f';
+        ctx.font = 'bold 26px "Courier New"';
+        ctx.fillText(milestoneBannerText, canvas.width / 2, 60);
+        ctx.textAlign = 'left';
+        ctx.restore();
+    }
+
+    if (gameState === 'START' || gameState === 'GAMEOVER') {
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+
+        ctx.textAlign = 'center';
+
+        if (imgTitleLogo.complete && imgTitleLogo.width > 0) {
+            const logoW = 380;
+            const logoH = (imgTitleLogo.height / imgTitleLogo.width) * logoW;
+            ctx.drawImage(imgTitleLogo, canvas.width / 2 - logoW / 2, 20, logoW, logoH);
+        } else {
+            ctx.fillStyle = '#f1c40f';
+            ctx.font = 'bold 36px "Courier New"';
+            ctx.fillText('Loading...', canvas.width / 2, 80);
+        }
+        const startText = gameState === 'START' ? 'START GAME' : 'RESTART GAME';
+        const menuItems = [
+            { text: startText, y: 245 },
+            { text: 'CHARACTER', y: 285 },
+            { text: 'HELP', y: 325 }
+        ];
+
+        menuItems.forEach((item, index) => {
+            const hovered = hoveredMenuIndex === index;
+            ctx.font = hovered ? 'bold 28px "Courier New"' : 'bold 22px "Courier New"';
+            ctx.fillStyle = hovered ? '#ffffff' : '#bcbcbc';
+            ctx.fillText(item.text, canvas.width / 2, item.y);
+
+            if (hovered) {
+                drawTriangle(canvas.width / 2 - 145, item.y - 10, 'right', '#76c3ff');
+            }
+        });
+
+        ctx.font = '17px "Courier New"';
+        ctx.fillStyle = '#aaa';
+        ctx.fillText(`Highest Score: ${highScore}`, canvas.width / 2, 365);
+
+        if (gameState === 'GAMEOVER') {
+            ctx.fillStyle = '#ff4d4d';
+            ctx.font = '15px "Courier New"';
+            ctx.fillText(`Last Score: ${Math.floor(score)}`, canvas.width / 2, 390);
+        }
+
+        ctx.textAlign = 'left';
+    }
+}
+
+function restartGame() {
+    obstacles = [];
+    items = [];
+    spawnCooldown = 40;
+    score = 0;
+    distance = 0;
+    currentSpeed = INITIAL_SPEED; 
+    speedAccel = 0.0008;
+    difficultyTier = 0;
+    milestoneBannerUntil = 0;
+    hasTriggeredItem2ThisRound = false; 
+    hasTriggeredItem3ThisRound = false; 
+    gameSpeed = currentSpeed;
+    boostTimer = 0;
+    player.vy = 0;
+    player.jumpCount = 0;
+    jumpPenaltyInvincibleUntil = 0;
+    applySelectedSkin();
+    gameState = 'PLAYING';
+}
+
+function handleMenuClick(e) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const clickX = (e.clientX - rect.left) * scaleX;
+    const clickY = (e.clientY - rect.top) * scaleY;
+
+    if (gameState === 'START' || gameState === 'GAMEOVER') {
+        const menuCenterX = canvas.width / 2;
+        const hitHalfWidth = 105;
+        const onMenuText = clickX >= menuCenterX - hitHalfWidth &&
+                           clickX <= menuCenterX + hitHalfWidth;
+
+        if (onMenuText && clickY >= 225 && clickY <= 265) {
+            if (gameState === 'START') {
+                applySelectedSkin();
+                gameState = 'PLAYING';
+            } else if (gameState === 'GAMEOVER') {
+                restartGame();
+            }
+        }
+        else if (onMenuText && clickY >= 265 && clickY <= 305) {
+            returnToRestartAfterSelection = (gameState === 'GAMEOVER');
+            gameState = 'CHARACTER_SELECT';
+        }
+        else if (onMenuText && clickY >= 305 && clickY <= 345) {
+            hoveredMenuIndex = 2;
+            returnToRestartAfterSelection = (gameState === 'GAMEOVER');
+            gameState = 'INSTRUCTIONS';
+        }
+    } else if (gameState === 'CHARACTER_SELECT') {
+        const centerX = canvas.width / 2;
+
+        if (clickY >= canvas.height - 90) {
+            applySelectedSkin();
+            if (returnToRestartAfterSelection) {
+                returnToRestartAfterSelection = false;
+                gameState = 'GAMEOVER';
+            } else {
+                gameState = 'START';
+            }
+        } 
+        else if (clickX < centerX - 30) {
+            changeCharacter(-1);
+        } 
+        else if (clickX > centerX + 30) {
+            changeCharacter(1);
+        }
+    } else if (gameState === 'INSTRUCTIONS') {
+        // < BACK button in the top-left corner.
+        if (clickX >= 10 && clickX <= 150 && clickY >= 5 && clickY <= 60) {
+            gameState = returnToRestartAfterSelection ? 'GAMEOVER' : 'START';
+            returnToRestartAfterSelection = false;
+            hoveredMenuIndex = -1;
+            isSelectBtnHovered = false;
+        }
+    }
+}
+
+window.addEventListener('keydown', (e) => {
+    if (gameState === 'START' || gameState === 'GAMEOVER') {
+        if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
+            e.preventDefault();
+            if (e.code === 'ArrowUp') {
+                menuIndex = (menuIndex + 2) % 3;
+            } else {
+                menuIndex = (menuIndex + 1) % 3;
+            }
+            hoveredMenuIndex = menuIndex;
+        } else if (e.code === 'ArrowLeft') {
+            e.preventDefault();
+            if (menuIndex === 1) changeCharacter(-1);
+        } else if (e.code === 'ArrowRight') {
+            e.preventDefault();
+            if (menuIndex === 1) changeCharacter(1);
+        } else if (e.code === 'Space' || e.code === 'Enter') {
+            e.preventDefault();
+            if (menuIndex === 0) {
+                if (gameState === 'START') { applySelectedSkin(); gameState = 'PLAYING'; }
+                else restartGame();
+            } else if (menuIndex === 1) {
+                returnToRestartAfterSelection = (gameState === 'GAMEOVER');
+                gameState = 'CHARACTER_SELECT';
+            } else if (menuIndex === 2) {
+                returnToRestartAfterSelection = (gameState === 'GAMEOVER');
+                gameState = 'INSTRUCTIONS';
+            }
+        }
+    } else if (gameState === 'INSTRUCTIONS') {
+        if (e.code === 'Escape' || e.code === 'Space' || e.code === 'Enter') {
+            e.preventDefault();
+            gameState = returnToRestartAfterSelection ? 'GAMEOVER' : 'START';
+            returnToRestartAfterSelection = false;
+            clearHoverState();
+        }
+    } else if (gameState === 'CHARACTER_SELECT') {
+        if (e.code === 'ArrowLeft') {
+            e.preventDefault();
+            changeCharacter(-1);
+        } else if (e.code === 'ArrowRight') {
+            e.preventDefault();
+            changeCharacter(1);
+        } else if (e.code === 'Space' || e.code === 'Enter') {
+            e.preventDefault();
+            applySelectedSkin();
+
+            if (returnToRestartAfterSelection) {
+                returnToRestartAfterSelection = false;
+                gameState = 'GAMEOVER';
+            } else {
+                gameState = 'START';
+            }
+        }
+    } else if (gameState === 'PLAYING') {
+        if (e.code === 'Space' || e.code === 'ArrowUp') {
+            e.preventDefault();
+            player.jump();
+        }
+    }
+});
+
+    window.addEventListener('click', (e) => {
+    if (e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON') return;
+
+    if (gameState === 'START' ||
+        gameState === 'GAMEOVER' ||
+        gameState === 'CHARACTER_SELECT' ||
+        gameState === 'INSTRUCTIONS') {
+        handleMenuClick(e);
+    } else if (gameState === 'PLAYING') {
+        player.jump();
+    }
+});
+
+window.addEventListener('touchstart', (e) => {
+    if (e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON') return;
+
+    e.preventDefault();
+
+    if (e.touches.length > 0) {
+        const touch = e.touches[0];
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const touchX = (touch.clientX - rect.left) * scaleX;
+        const touchY = (touch.clientY - rect.top) * scaleY;
+
+        if (gameState === 'START' || gameState === 'GAMEOVER' || gameState === 'CHARACTER_SELECT' || gameState === 'INSTRUCTIONS') {
+            updateHoverState(touchX, touchY);
+            setTimeout(() => {
+                handleMenuClick(touch);
+                clearHoverState();
+            }, 100);
+        } else if (gameState === 'PLAYING') {
+            player.jump();
+        }
+    }
+}, { passive: false });
+
+window.addEventListener('touchmove', (e) => {
+    if (e.touches.length > 0 && (gameState === 'START' || gameState === 'GAMEOVER' || gameState === 'CHARACTER_SELECT' || gameState === 'INSTRUCTIONS')) {
+        const touch = e.touches[0];
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const touchX = (touch.clientX - rect.left) * scaleX;
+        const touchY = (touch.clientY - rect.top) * scaleY;
+        updateHoverState(touchX, touchY);
+    }
+}, { passive: true });
+
+window.addEventListener('touchend', clearHoverState);
+
+function triggerSpecialEvent() {
+    isSpecialActive = true;
+    const overlay = document.getElementById('special-overlay');
+    overlay.style.display = 'block';
+
+    specialCanvas.width = overlay.clientWidth || 800;
+    specialCanvas.height = overlay.clientHeight || 400;
+
+    let startTime = Date.now();
+
+    let specialInterval = setInterval(() => {
+        const elapsed = (Date.now() - startTime) / 1000;
+        const remaining = Math.max(0, 5 - elapsed);
+
+        renderSpecialPage(elapsed);
+
+        if (remaining <= 0) {
+            clearInterval(specialInterval);
+            isSpecialActive = false;
+            overlay.style.display = 'none';
+        }
+    }, 1000 / 60);
+}
+
+const specialImages = {
+    'char1': new Image(),
+    'char2': new Image(),
+    'char3': new Image(),
+    'char4': new Image(),
+    'bg': new Image()
+};
+specialImages['char1'].src = 'images/char1_run.png';
+specialImages['char2'].src = 'images/char2_run.png';
+specialImages['char3'].src = 'images/char3_run.png';
+specialImages['char4'].src = 'images/char4_run.png';
+specialImages['bg'].src = 'images/special_bg.gif';
+
+function renderSpecialPage(time) {
+    specialCtx.clearRect(0, 0, specialCanvas.width, specialCanvas.height);
+}
+
+function drawTriangle(x, y, direction, color, size = 15) {
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    if (direction === 'left') {
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + size, y - size / 2);
+        ctx.lineTo(x + size, y + size / 2);
+    } else if (direction === 'right') {
+        ctx.moveTo(x, y);
+        ctx.lineTo(x - size, y - size / 2);
+        ctx.lineTo(x - size, y + size / 2);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+}
+
+switchBGM('char1');
+gameLoop();
+</script>
+</body>
+</html>
