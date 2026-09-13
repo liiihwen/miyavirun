@@ -396,14 +396,20 @@ function resizeCanvas() {
 
     const monitor = document.querySelector('.retro-monitor');
     if (monitor) {
-        const vw = window.innerWidth;
-        const vh = window.innerHeight;
-        const isSmall = vh <= 500 || vw <= 600;  
-        const wRatio = isSmall ? 0.80 : 0.95; 
-        const hRatio = isSmall ? 1.60 : 1.50; 
-        const w = Math.min(vw * wRatio, vh * hRatio);
+        const margin = 16;
+        const availW = window.innerWidth - margin * 2;
+        const availH = window.innerHeight - margin * 2;
+
+        let w = availW;
+        let h = w / 2;    
+
+        if (h > availH) {    
+            h = availH;
+            w = h * 2;
+        }
+
         monitor.style.width = w + 'px';
-        monitor.style.height = (w / 2) + 'px';  
+        monitor.style.height = h + 'px';
     }
 }
 
