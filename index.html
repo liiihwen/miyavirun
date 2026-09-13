@@ -385,19 +385,25 @@ const specialCanvas = document.getElementById('specialCanvas');
 const specialCtx = specialCanvas.getContext('2d');
 
 function resizeCanvas() {
-    const monitor = document.querySelector('.retro-monitor');
-
     canvas.width = 800;
     canvas.height = 400;
-    ctx.imageSmoothingEnabled = false; 
-    groundY = 340; 
+    ctx.imageSmoothingEnabled = false;
+    groundY = 340;
     if (typeof player !== 'undefined' && player) {
         const dims = player.getFrameDimensions();
         player.y = groundY - dims.drawH + GROUND_VISUAL_OFFSET;
     }
 
+    const monitor = document.querySelector('.retro-monitor');
     if (monitor) {
-        monitor.style.height = (monitor.offsetWidth / 2) + 'px';
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const isSmall = vh <= 500 || vw <= 600;  
+        const wRatio = isSmall ? 0.80 : 0.95; 
+        const hRatio = isSmall ? 1.60 : 1.50; 
+        const w = Math.min(vw * wRatio, vh * hRatio);
+        monitor.style.width = w + 'px';
+        monitor.style.height = (w / 2) + 'px';  
     }
 }
 
