@@ -385,6 +385,8 @@ const specialCanvas = document.getElementById('specialCanvas');
 const specialCtx = specialCanvas.getContext('2d');
 
 function resizeCanvas() {
+    const monitor = document.querySelector('.retro-monitor');
+
     canvas.width = 800;
     canvas.height = 400;
     ctx.imageSmoothingEnabled = false; 
@@ -392,6 +394,10 @@ function resizeCanvas() {
     if (typeof player !== 'undefined' && player) {
         const dims = player.getFrameDimensions();
         player.y = groundY - dims.drawH + GROUND_VISUAL_OFFSET;
+    }
+
+    if (monitor) {
+        monitor.style.height = (monitor.offsetWidth / 2) + 'px';
     }
 }
 
@@ -1471,8 +1477,8 @@ specialImages['bg'].src = 'images/special_bg.gif';
 function renderSpecialPage(time, remaining) {
     specialCtx.clearRect(0, 0, specialCanvas.width, specialCanvas.height);
 
-    specialCtx.fillStyle = '#fff';
-    specialCtx.font = 'bold 28px "Courier New"';
+    specialCtx.fillStyle = '#00000';
+    specialCtx.font = 'bold 30px "Courier New"';
     specialCtx.fillText(Math.ceil(remaining), 20, 40);
 }
 
